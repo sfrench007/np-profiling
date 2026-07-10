@@ -26,7 +26,7 @@ install.packages(c(
 ))
 ```
 
-> **Note:** `functions/functions.R` also loads `xlsx` to read a Carpenter controls legend file.
+> **Note:** `functions/functions.R` also loads `xlsx` to read a controls legend file.
 > Ensure `rJava` is installed and configured correctly for this to work on your system.
 
 ---
