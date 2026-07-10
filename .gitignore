@@ -1,0 +1,31 @@
+# =============================================================================
+# .gitignore for np-profiling
+# =============================================================================
+
+# --- Large data files (too big for GitHub, not included in repo) ---
+data/db/
+data/output/*.Rds
+data/output/*.Rdata
+data/output/*.RData
+data/output/*.tsv
+data/output/*.csv
+data/input/
+
+# --- Trained model outputs ---
+results/*.Rds
+results/*.Rdata
+results/*.RData
+
+# --- DrugBank database snapshot (licensed, not redistributable) ---
+drugbank/
+
+# --- R session artifacts ---
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+
+# --- OS artifacts ---
+.DS_Store
+Thumbs.db
+desktop.ini
