@@ -2,19 +2,25 @@
 # .gitignore for np-profiling
 # =============================================================================
 
-# --- Large data files (too big for GitHub, not included in repo) ---
-data/db/
+# Always track .gitkeep placeholder files (used to preserve empty directories)
+!**/.gitkeep
+
+# --- Large data files (too big for GitHub; directories kept via .gitkeep) ---
+data/db/*
+!data/db/.gitkeep
 data/output/*.Rds
 data/output/*.Rdata
 data/output/*.RData
 data/output/*.tsv
 data/output/*.csv
-data/input/
+data/input/training/*
+!data/input/training/.gitkeep
+data/input/*
+!data/input/.gitkeep
 
 # --- Trained model outputs ---
-results/*.Rds
-results/*.Rdata
-results/*.RData
+results/*
+!results/.gitkeep
 
 # --- DrugBank database snapshot (required input — tracked in repo) ---
 # drugbank/ is intentionally tracked; db_all.Rds is 67 MB (under GitHub's 100 MB limit)
