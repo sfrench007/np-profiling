@@ -18,9 +18,8 @@ data/input/training/*
 data/input/*
 !data/input/.gitkeep
 
-# --- Trained model outputs ---
-results/*
-!results/.gitkeep
+# --- Trained model outputs (tracked via Git LFS) ---
+# results/ files are now stored in LFS — see .gitattributes
 
 # --- DrugBank database snapshot (required input — tracked in repo) ---
 # drugbank/ is intentionally tracked; db_all.Rds is 67 MB (under GitHub's 100 MB limit)
