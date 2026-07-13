@@ -5,14 +5,10 @@
 # Always track .gitkeep placeholder files (used to preserve empty directories)
 !**/.gitkeep
 
-# --- Large data files (too big for GitHub; directories kept via .gitkeep) ---
+# --- Large data files (tracked via Git LFS or kept via .gitkeep) ---
 data/db/*
 !data/db/.gitkeep
-data/output/*.Rds
-data/output/*.Rdata
-data/output/*.RData
-data/output/*.tsv
-data/output/*.csv
+# data/output/ files are now stored in LFS — see .gitattributes
 data/input/training/*
 !data/input/training/.gitkeep
 data/input/*
