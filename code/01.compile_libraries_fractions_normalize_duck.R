@@ -1,3 +1,42 @@
+# =============================================================================
+# 01.compile_libraries_fractions_normalize_duck.R
+# Cell Painting Pipeline — Data Ingestion & Normalization
+# =============================================================================
+#
+# PURPOSE
+#   Loads raw Cell Painting .RData files for each NP library (training and
+#   fractions), applies per-column density-peak normalization, computes
+#   Mahalanobis distances and phenotypic activity flags, then writes the
+#   fully compiled dataset to a DuckDB database for downstream scripts.
+#
+# WORKFLOW
+#   1. (Optional) Download source .RData files from Mendeley if missing
+#   2. Load and merge all library files into a single cp_compiled list
+#   3. Density-normalize each feature column across the dataset
+#   4. Compute Mahalanobis distance and phenotypic activity per well
+#   5. Write all tables to data/db/cellpainting.duckdb via write_to_duckdb()
+#   6. Write a fallback cp_compiled_all_fractions_norm.Rds to data/output/
+#
+# INPUTS  (all relative to --wd or the working directory)
+#   data/input/training/*.RData   — training-set Cell Painting data
+#   data/input/test/*.RData       — fraction/test Cell Painting data
+#   functions/functions.R         — shared helper functions
+#   drugbank/db_all.Rds           — DrugBank XML rip (used later by script 04)
+#
+# OUTPUTS
+#   data/db/cellpainting.duckdb                  — primary analytical database
+#   data/output/cp_compiled_all_fractions_norm.Rds  — legacy fallback
+#
+# COMMAND-LINE FLAGS
+#   --wd <path>     Set working directory
+#   --force         Re-run even if the processing log shows script 01 has run
+#   --norm <method> Normalization method (default: density)
+#   --emerg         Emergency re-emerge: re-write DuckDB from existing Rds
+#
+# DEPENDENCIES
+#   None (first script in the pipeline)
+# =============================================================================
+
 # Initial option declarations
 options(stringsAsFactors=FALSE) # Otherwise we need to force them as strings repeatedly
 options(echo=FALSE) # Rscript needs options(echo=TRUE) to make an output file

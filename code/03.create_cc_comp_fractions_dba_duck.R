@@ -1,3 +1,38 @@
+# =============================================================================
+# 03.create_cc_comp_fractions_dba_duck.R
+# Cell Painting Pipeline — Compound & Fraction Reference Set
+# =============================================================================
+#
+# PURPOSE
+#   Reads the QC-filtered Cell Painting data from DuckDB, resolves compound
+#   annotations (MeSH pharmacology, DrugBank, SMILES similarity), computes
+#   per-compound Cell Painting profiles via median aggregation, and writes
+#   the training and fraction reference tables back to DuckDB.
+#
+# WORKFLOW
+#   1. Load metadata, features, and QC filter from DuckDB (scripts 01 & 02)
+#   2. Resolve compound names via nameScan() priority rules
+#   3. Match compounds to DrugBank using PubChem CIDs and SMILES similarity
+#   4. Aggregate per-well profiles to per-compound medians (training set)
+#   5. Write cc_comp (compound profiles) and cc_fractions tables to DuckDB
+#
+# INPUTS  (all relative to --wd or the working directory)
+#   data/db/cellpainting.duckdb   — database from scripts 01 & 02
+#   functions/functions.R         — shared helper functions
+#   drugbank/db_all.Rds           — DrugBank XML rip
+#
+# OUTPUTS
+#   data/db/cellpainting.duckdb   — updated with cc_comp, cc_fractions,
+#                                    and mahalanobis tables
+#
+# COMMAND-LINE FLAGS
+#   --wd <path>   Set working directory
+#   --force       Re-run even if the processing log shows script 03 has run
+#
+# DEPENDENCIES
+#   Script 01 (database), Script 02 (QC filter)
+# =============================================================================
+
 # Initial option declarations
 options(stringsAsFactors=FALSE) # Otherwise we need to force them as strings repeatedly
 options(echo=FALSE) # Rscript needs options(echo=TRUE) to make an output file

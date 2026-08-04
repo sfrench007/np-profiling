@@ -1,3 +1,38 @@
+# =============================================================================
+# 02.detectDeadBlurry_filesize_duck.R
+# Cell Painting Pipeline — Image Quality Control
+# =============================================================================
+#
+# PURPOSE
+#   Scans Cell Painting image file sizes to identify wells imaged with dead,
+#   blurry, or otherwise poor-quality conditions. Builds a quality-control
+#   filter table and appends it to the DuckDB database so that downstream
+#   scripts (03+) can exclude failed wells automatically.
+#
+# WORKFLOW
+#   1. Load compiled data and image file-size metadata from DuckDB
+#   2. Identify dead wells via blank-well cell-density thresholds (findBlank)
+#   3. Identify blurry images via density-based file-size normalization
+#      (minmaxNorm / uniroot peak-detection)
+#   4. Flag wells failing either filter as quality-control failures
+#   5. Write deadwells_filesize and phenotypic_active tables back to DuckDB
+#
+# INPUTS  (all relative to --wd or the working directory)
+#   data/db/cellpainting.duckdb   — database written by script 01
+#   functions/functions.R         — shared helper functions
+#
+# OUTPUTS
+#   data/db/cellpainting.duckdb   — updated with deadwells_filesize and
+#                                    phenotypic_active tables
+#
+# COMMAND-LINE FLAGS
+#   --wd <path>   Set working directory
+#   --force       Re-run even if the processing log shows script 02 has run
+#
+# DEPENDENCIES
+#   Script 01 (database must exist)
+# =============================================================================
+
 # Initial option declarations
 options(stringsAsFactors=FALSE) # Otherwise we need to force them as strings repeatedly
 options(echo=FALSE) # Rscript needs options(echo=TRUE) to make an output file

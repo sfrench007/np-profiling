@@ -29,7 +29,9 @@
 #   --force       Re-run even if the processing log shows script 06 has run
 #
 # DEPENDENCIES
-#   Script 01 (database), Script 04 (training annotations), Script 05 (RF models)
+#   Script 01 (database), Script 02 (empty well filter),
+#   Script 03 (training-formatted input), Script 04 (training annotations),
+#   Script 05 (RF models)
 # =============================================================================
 
 # Initial option declarations

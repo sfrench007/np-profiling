@@ -1,3 +1,42 @@
+# =============================================================================
+# 04.fuzzy_create_full_db_training_duck.R
+# Cell Painting Pipeline — Training Set Annotation
+# =============================================================================
+#
+# PURPOSE
+#   Matches each training-set compound to DrugBank via PubChem CID, then
+#   builds annotated training matrices for five classification levels:
+#   ATC hierarchy levels 1–4 and drug target (functional class). The
+#   output is consumed directly by script 05 for RF model training.
+#
+# WORKFLOW
+#   1. Load training-set tables from DuckDB (metadata, mesh, features, etc.)
+#   2. Match compounds to DrugBank entries via PubChem CID (dbmatch)
+#   3. Resolve drug targets from DrugBank CETT table (tar_match)
+#      — optionally remap to curated functional classes via --useremaps
+#   4. Resolve ATC codes at levels 1–4 from DrugBank (atc_match)
+#   5. Build full_db_training: per-annotation-level feature matrices
+#   6. Save full_db_training to data/output/ and log the run to DuckDB
+#
+# INPUTS  (all relative to --wd or the working directory)
+#   data/db/cellpainting.duckdb                      — database from scripts 01–03
+#   drugbank/db_all.Rds                              — DrugBank XML rip
+#   legends/drugbank_curated_annotations.xlsx        — curated target remaps
+#   functions/functions.R                            — shared helper functions
+#
+# OUTPUTS
+#   data/output/full_db_training_scale_dba_remap.Rdata  — annotated training set
+#   data/db/cellpainting.duckdb                         — updated processing log
+#
+# COMMAND-LINE FLAGS
+#   --wd <path>    Set working directory
+#   --force        Re-run even if the processing log shows script 04 has run
+#   --useremaps    Apply curated functional-class remaps to drug targets
+#
+# DEPENDENCIES
+#   Script 01 (database), Script 02 (QC filter), Script 03 (compound profiles)
+# =============================================================================
+
 # Initial option declarations
 options(stringsAsFactors=FALSE) # Otherwise we need to force them as strings repeatedly
 options(echo=FALSE) # Rscript needs options(echo=TRUE) to make an output file
