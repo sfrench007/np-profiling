@@ -39,6 +39,7 @@ options(echo=FALSE) # Rscript needs options(echo=TRUE) to make an output file
 options(cli.progress_show_after=0) # For progress bars
 options(cli.condition="always") # For progress bars
 options(warn=(-1)) # Ignore NA warnings
+options(scipen = 999)
 arguments <- commandArgs(trailingOnly=FALSE) # Will capture all arguments, so can search these later
 
 library(cli)     # For progress bars with an ETA
@@ -48,6 +49,7 @@ library(rootSolve)
 library(stringi)
 library(stringr)
 library(openxlsx)
+library(arrow)
 
 # Function to update lists by subsetting the same number of members from each matrix/vector
 subsetRows <- function(listIn,subsetThese) {
@@ -532,6 +534,175 @@ if(useMethod=="filesize") {
         allreps <- sapply(allwells,function(x) strsplit(x,"-")[[1]][4])
         export_this <- cbind(allwells,alllibs,allplates,allreps,justallwells,allvalues)
         colnames(export_this) <- c("code","library","plate","rep","well","scaled.cell.density")
+        options(echo=TRUE)
+        write.table(export_this,paste0("data/output/deadwells_all.csv"),sep=",",row.names=FALSE,col.names=TRUE,quote=FALSE)
+        options(echo=FALSE)
+        fname <- paste0("data/output/deadwells_all.csv")
+        cli_alert_success(" Writing file [{fname}]")
+
+        cli_alert_success(" Loading dependencies")
+        source("functions/functions.R")
+        options(java.parameters = c("-XX:+UseConcMarkSweepGC", "-Xmx16192m"))
+        cli_alert_info(" Clearing RAM")
+        gc()
+
+        # Only the metadata table is needed here to build sample codes and row count.
+        # Keep the connection open so we can write the quality annotation back without
+        # a second open/close cycle.  The feature matrices are never loaded.
+        cli_alert_info(" Connecting to [data/db/cellpainting.duckdb] (metadata only)")
+        db_con    <- dbConnect(duckdb(), dbdir="data/db/cellpainting.duckdb", read_only=FALSE)
+        cc_meta   <- dbReadTable(db_con, "metadata")  # fast: one small table
+        bad <- readRDS("data/output/dba_summary.Rds")
+
+        cc_comp_codes <- apply(cc_meta, 1, function(x) paste(x[7], x[2], paste0("R", x[11]), x[5], sep="-"))
+
+        # Create a second set that converts the old names to the new ones
+        cc_comp_codes2 <- cc_comp_codes
+        cc_comp_codes2[which(substr(cc_comp_codes2,1,4)=="ANTI")] <- gsub("ANTI","ATCA",cc_comp_codes2[which(substr(cc_comp_codes2,1,4)=="ANTI")])
+
+        # Then swap conc and plate
+        cc_comp_codes3 <- sapply(cc_comp_codes2,function(x) {
+            st <- strsplit(x,"-")[[1]]
+            paste(st[1],st[3],st[2],st[4],st[5],sep="-")
+        }); names(cc_comp_codes3) <- NULL
+
+        # Bind the bad wells to their codes
+        badcodes <- c(); badnames <- c(); badcombo <- c()
+        cli_progress_bar("Building bad-well codes", total=length(bad$well_dba_names), clear=FALSE)
+        for(i in 1:length(bad$well_dba_names)) { 
+            cli_progress_update()
+            tname <- bad$filesizes_means_codes[i]
+            badnames_t <- strsplit(names(bad[[2]])[i],"/")[[1]][length(strsplit(names(bad[[2]])[i],"/")[[1]])]
+            if(length(bad$well_dba_names[[i]])>0) {
+                tcode <- paste0(tname,"-",bad$well_dba_names[[i]])
+                badnames <- c(badnames,badnames_t)
+                badcodes <- c(badcodes,tcode)
+                badcombo <- c(badcombo,paste0(badnames_t,"_",bad$well_dba_names[[i]]))
+            }
+        }
+        cli_progress_done()
+
+        # Then finally match to cc_comp_codes.  These will be the indices to remove
+        allbad <- c()
+        cli_progress_bar(" Processing ",total=length(badcodes),clear=FALSE)
+        for(i in 1:length(badcodes)) {
+            cli_progress_update()
+            temp <- which(cc_comp_codes3==badcodes[i])
+            if(length(temp)>0) {
+                allbad <- c(allbad,temp)
+            }
+        }
+
+        # Build quality vector and write it as a new table in the open connection
+        imageQuality <- rep("good", nrow(cc_meta))
+        imageQuality[allbad] <- "bad"
+
+        if(any(arguments=="--hqp")) {
+            arg_ind <- which(arguments=="--hqp")
+            arg_trailing <- arguments[arg_ind[1]+1]
+            if(length(arg_ind)>=1) {
+                tag <<- invisible(tryCatch(generateTag(hqp=arg_trailing),error=function(e) e, finally=function(x) generateTag(hqp=arg_trailing)))
+            }
+            cli_alert_success(" HQP set as {arg_trailing}")
+        }
+        # If no hqp exists in the arguments
+        if(!any(ls()=="tag")) {
+            cli_alert_warning(" No HQP set in arguments so using [Anonymous] to generate info tag")
+            tag <<- generateTag(hqp="Anonymous")
+        }
+
+        cli_alert_success(" Adding [deadwells_filesize] table to [data/db/cellpainting.duckdb]")
+        options(echo=TRUE)
+        dw_df <- data.frame(CP_Index=cc_meta$CP_Index,
+                            image_quality=imageQuality,
+                            stringsAsFactors=FALSE)
+        dbWriteTable(db_con, "deadwells_filesize", dw_df, overwrite=TRUE)
+
+        # Log this run so re-runs are skipped unless --force is passed
+        dbWriteTable(db_con, "_processing_log",
+                     data.frame(
+                         script    = "02.detectDeadBlurry_filesize",
+                         timestamp = format(Sys.time(), "%Y-%m-%d %H:%M:%S"),
+                         row.names = NULL
+                     ),
+                     append=TRUE, overwrite=FALSE)
+        dbDisconnect(db_con, shutdown=TRUE)
+        options(echo=FALSE)
+        cli_alert_success(" Processing log updated")
+    } else {
+        cli_alert_success(" Only annotating data")        
+    }
+} else if(method=="transformer") {
+    cli_alert_info(" Using transformer model outputs for dead/empty/blurry well detection")
+    dba_trans <- read_parquet("data/input/qc_deadempty_predictions.parquet")
+    bad <- list()
+    bad$cutoff <- 0.5
+    bad$sheet <- dba_trans
+    bad$well_dba_names <- dba_trans[which(dba_trans$p_dead_empty>bad$cutoff),"well"]
+    
+    # bad <- list()
+    # bad$cutoff <- cutoff
+    # bad$filesizes_raw <- filesizes_raw
+    # bad$filesizes_norm <- filesizes
+    # bad$filesizes_means <- filesizes_means
+    # bad$filesizes_means_codes <- newNames_workingList
+    # bad$well_dba_indices <- well_dba_indices
+    # bad$well_dba_values <- well_dba_values
+    # bad$well_dba_names <- well_dba_names
+
+    if(!any(arguments=="--annotateonly")) {
+        if(any(arguments=="--hqp")) {
+            arg_ind <- which(arguments=="--hqp")
+            arg_trailing <- arguments[arg_ind[1]+1]
+            if(length(arg_ind)>=1) {
+                tag <<- invisible(tryCatch(generateTag(hqp=arg_trailing),error=function(e) e, finally=function(x) generateTag(hqp=arg_trailing)))
+            }
+            cli_alert_success(" HQP set as {arg_trailing}")
+        }
+        # If no hqp exists in the arguments
+        if(!any(ls()=="tag")) {
+            cli_alert_warning(" No HQP set in arguements so using [Anonymous] to generate info tag")
+            tag <<- generateTag(hqp="Anonymous")
+        }
+        options(echo=TRUE)
+        saveRDS(bad,"data/output/dba_summary.Rds",version=2)
+        options(echo=FALSE)
+        cli_alert_success(" Writing file [data/output/dba_summary.Rds]")
+
+        allsplit <- do.call(rbind,strsplit(dba_trans$plate,"_"))       
+        alllibs <- dba_trans$screen
+        allplates <- allsplit[,2]
+        allreps <- allsplit[,4]
+        justallwells <- dba_trans$well
+        allvalues <- dba_trans$p_dead_empty
+        allwells <- paste(alllibs,allsplit[,3],allplates,allreps,justallwells,sep="-")
+        allfields <- dba_trans$fov_id
+        tcode <- paste(dba_trans$plate,dba_trans$well,sep="-")
+
+        # Export dead-well summary to CSV for reporting
+        export_this_full <- cbind(allwells,alllibs,allplates,allreps,justallwells,allvalues)
+        colnames(export_this_full) <- c("code","library","plate","rep","well","dba.probability")
+
+        # Now consolidate the fields for exporting
+        export_this <- do.call(rbind,sapply(unique(tcode),function(x) {
+            ind_temp <- which(tcode==x)
+            minprob_temp <- min(as.numeric(export_this_full[ind_temp,"dba.probability"]))
+            if(minprob_temp>bad$cutoff) {
+                lineOut_temp <- export_this_full[ind_temp[1],]
+                lineOut_temp["dba.probability"] <- minprob_temp
+                return(lineOut_temp)
+            }
+        }))
+
+        # export_this <- export_this_full[which(export_this_full[,"dba.probability"]>bad$cutoff),]
+
+
+
+
+
+
+
+
         options(echo=TRUE)
         write.table(export_this,paste0("data/output/deadwells_all.csv"),sep=",",row.names=FALSE,col.names=TRUE,quote=FALSE)
         options(echo=FALSE)
