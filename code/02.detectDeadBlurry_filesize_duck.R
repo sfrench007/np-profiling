@@ -15,14 +15,14 @@
 #   3. Identify blurry images via density-based file-size normalization
 #      (minmaxNorm / uniroot peak-detection)
 #   4. Flag wells failing either filter as quality-control failures
-#   5. Write deadwells_filesize and phenotypic_active tables back to DuckDB
+#   5. Write deadwells and phenotypic_active tables back to DuckDB
 #
 # INPUTS  (all relative to --wd or the working directory)
 #   data/db/cellpainting.duckdb   — database written by script 01
 #   functions/functions.R         — shared helper functions
 #
 # OUTPUTS
-#   data/db/cellpainting.duckdb   — updated with deadwells_filesize and
+#   data/db/cellpainting.duckdb   — updated with deadwells and
 #                                    phenotypic_active tables
 #
 # COMMAND-LINE FLAGS
@@ -611,12 +611,12 @@ if(useMethod=="filesize") {
             tag <<- generateTag(hqp="Anonymous")
         }
 
-        cli_alert_success(" Adding [deadwells_filesize] table to [data/db/cellpainting.duckdb]")
+        cli_alert_success(" Adding [deadwells] table to [data/db/cellpainting.duckdb]")
         options(echo=TRUE)
         dw_df <- data.frame(CP_Index=cc_meta$CP_Index,
                             image_quality=imageQuality,
                             stringsAsFactors=FALSE)
-        dbWriteTable(db_con, "deadwells_filesize", dw_df, overwrite=TRUE)
+        dbWriteTable(db_con, "deadwells", dw_df, overwrite=TRUE)
 
         # Log this run so re-runs are skipped unless --force is passed
         dbWriteTable(db_con, "_processing_log",
@@ -683,25 +683,14 @@ if(useMethod=="filesize") {
         export_this_full <- cbind(allwells,alllibs,allplates,allreps,justallwells,allvalues)
         colnames(export_this_full) <- c("code","library","plate","rep","well","dba.probability")
 
-        # Now consolidate the fields for exporting
-        export_this <- do.call(rbind,sapply(unique(tcode),function(x) {
-            ind_temp <- which(tcode==x)
-            minprob_temp <- min(as.numeric(export_this_full[ind_temp,"dba.probability"]))
-            if(minprob_temp>bad$cutoff) {
-                lineOut_temp <- export_this_full[ind_temp[1],]
-                lineOut_temp["dba.probability"] <- minprob_temp
-                return(lineOut_temp)
-            }
-        }))
-
-        # export_this <- export_this_full[which(export_this_full[,"dba.probability"]>bad$cutoff),]
-
-
-
-
-
-
-
+        # Now consolidate the fields for exporting — vectorized: O(n) vs O(n²) loop
+        prob_num <- as.numeric(export_this_full[, "dba.probability"])
+        min_by_code <- tapply(prob_num, tcode, min) # min prob per plate-well
+        passing_codes <- names(min_by_code)[min_by_code > bad$cutoff] # filter by cutoff
+        first_idx <- match(passing_codes, tcode) # first row per code
+        export_this <- export_this_full[first_idx, , drop=FALSE]
+        export_this[, "dba.probability"] <- as.character(min_by_code[passing_codes])
+        cli_alert_info(" Consolidated {nrow(export_this_full)} FOV rows into {nrow(export_this)} wells above cutoff")
 
         options(echo=TRUE)
         write.table(export_this,paste0("data/output/deadwells_all.csv"),sep=",",row.names=FALSE,col.names=TRUE,quote=FALSE)
@@ -714,6 +703,16 @@ if(useMethod=="filesize") {
         options(java.parameters = c("-XX:+UseConcMarkSweepGC", "-Xmx16192m"))
         cli_alert_info(" Clearing RAM")
         gc()
+
+
+
+
+
+
+
+
+
+
 
         # Only the metadata table is needed here to build sample codes and row count.
         # Keep the connection open so we can write the quality annotation back without
@@ -780,12 +779,12 @@ if(useMethod=="filesize") {
             tag <<- generateTag(hqp="Anonymous")
         }
 
-        cli_alert_success(" Adding [deadwells_filesize] table to [data/db/cellpainting.duckdb]")
+        cli_alert_success(" Adding [deadwells] table to [data/db/cellpainting.duckdb]")
         options(echo=TRUE)
         dw_df <- data.frame(CP_Index=cc_meta$CP_Index,
                             image_quality=imageQuality,
                             stringsAsFactors=FALSE)
-        dbWriteTable(db_con, "deadwells_filesize", dw_df, overwrite=TRUE)
+        dbWriteTable(db_con, "deadwells", dw_df, overwrite=TRUE)
 
         # Log this run so re-runs are skipped unless --force is passed
         dbWriteTable(db_con, "_processing_log",

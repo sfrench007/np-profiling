@@ -143,7 +143,7 @@ for (d in required_dirs) {
     }
 }
 
-# Load in the compiled data from DuckDB, applying the deadwells_filesize quality
+# Load in the compiled data from DuckDB, applying the deadwells quality
 # filter written by script 02 (equivalent to the old noDBA Rds).
 db_path <- "data/db/cellpainting.duckdb"
 con <- dbConnect(duckdb(), dbdir=db_path, read_only=TRUE)
@@ -182,8 +182,8 @@ if ("_tag" %in% avail_tbls) {
     tag_df <- dbReadTable(con, "_tag")
     cp_compiled[["tag"]] <- setNames(tag_df$value, tag_df$key)
 }
-if ("deadwells_filesize" %in% avail_tbls) {
-    cp_compiled[["deadwells_filesize"]] <- as.matrix(dbReadTable(con, "deadwells_filesize"))
+if ("deadwells" %in% avail_tbls) {
+    cp_compiled[["deadwells"]] <- as.matrix(dbReadTable(con, "deadwells"))
 }
 dbDisconnect(con, shutdown=TRUE)
 cli_alert_success(" All data loaded, proceeding to compile")
@@ -203,13 +203,13 @@ for(i in seq_along(cp_compiled)) {
     } else if(is.matrix(el) && nrow(el) == nrow(cp_compiled$metadata)) {
         rownames(cp_compiled[[i]]) <- cp_compiled$metadata[,1]
         # Tables that keep all columns intact (no CP_Index strip, no numeric coercion)
-        keep_as_is <- c("metadata","mesh","db","url","method","features_raw","deadwells_filesize")
+        keep_as_is <- c("metadata","mesh","db","url","method","features_raw","deadwells")
         if(!nm %in% keep_as_is) {
             cp_compiled[[i]] <- cp_compiled[[i]][,-1]
             cp_compiled[[i]] <- apply(cp_compiled[[i]],2,as.numeric)
         }
     }
-    # tag (short named vector), deadwells_filesize (different row count),
+    # tag (short named vector), deadwells (different row count),
     # and any other non-conforming elements are silently skipped
 }
 
@@ -325,7 +325,7 @@ cp_purged$db <- cbind(cp_purged$db,functional_class)
 # Export master metadata flat file (optional, triggered by --masterlist flag)
 if(any(arguments=="--masterlist")) {
     options(echo=TRUE)
-    write.table(cbind(cp_purged$metadata,cp_purged$mesh,cp_purged$db,cp_purged$counts,cp_purged$url,cp_purged$method,cp_purged$mahalanobis,cp_purged$phenotypic_active,cp_purged$deadwells_filesize),"data/output/masterdata.tsv",row.names=FALSE,col.names=TRUE,sep="\t")
+    write.table(cbind(cp_purged$metadata,cp_purged$mesh,cp_purged$db,cp_purged$counts,cp_purged$url,cp_purged$method,cp_purged$mahalanobis,cp_purged$phenotypic_active,cp_purged$deadwells),"data/output/masterdata.tsv",row.names=FALSE,col.names=TRUE,sep="\t")
     options(echo=FALSE)
     cli_alert_success(" Master metadata log stored at [data/output/masterdata.tsv]")
 }

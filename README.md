@@ -80,7 +80,7 @@ already run against the current database and skips gracefully — pass `--force`
 | Script | Description |
 |--------|-------------|
 | **01** | Loads training library and NP fraction `.RData` files, concatenates them, runs a 3-pass plate-level normalization (IQM → plate-median sweep → density-peak centering), and writes all feature matrices and metadata to `data/db/cellpainting.duckdb`. |
-| **02** | Detects dead and empty wells using TIFF image file size as a cell-density proxy. Normalizes file sizes using bimodal density peaks, applies multi-channel cutoffs (DAPI, TxRed, Cy5), and writes a `deadwells_filesize` quality column to the database. |
+| **02** | Detects dead and empty wells using TIFF image file size as a cell-density proxy (and optionally other methods). Normalizes file sizes using bimodal density peaks, applies multi-channel cutoffs (DAPI, TxRed, Cy5), and writes a `deadwells` quality column to the database. |
 | **03** | Loads the cleaned database, removes low-quality plates and redundant features, computes per-sample Mahalanobis distances (phenotypic activity), remaps DrugBank target annotations to curated functional classes, and writes the purged data back to the database. |
 | **04** | Constructs annotated training sets at five annotation levels (ATC levels 1–4 and drug target) by matching compounds to DrugBank and ATC hierarchies. Saves training sets to `data/output/full_db_training_scale_dba_remap.Rdata`. |
 | **05** | Trains one-vs-one (OvO) Random Forest classifiers at each annotation level using repeated cross-validation. Saves per-level model objects to `results/RF_<level>.Rds`. |
