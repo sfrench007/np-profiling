@@ -29,6 +29,7 @@ options(stringsAsFactors=FALSE) # Otherwise we need to force them as strings rep
 options(echo=FALSE)             # Rscript needs options(echo=TRUE) to make an output file
 options(cli.progress_show_after=0)
 options(cli.condition="always")
+options(cli.width=max(80L, getOption("width", 80L))) # Guard against 0/NA width in Rscript (causes rep() crash in make_progress_bar)
 options(warn=(-1))              # Suppress NA-coercion warnings
 arguments <- commandArgs(trailingOnly=FALSE) # Capture all arguments for later inspection
 

@@ -42,6 +42,7 @@ options(stringsAsFactors=FALSE) # Otherwise we need to force them as strings rep
 options(echo=FALSE) # Rscript needs options(echo=TRUE) to make an output file
 options(cli.progress_show_after=0) # For progress bars
 options(cli.condition="always") # For progress bars
+options(cli.width=max(80L, getOption("width", 80L))) # Guard against 0/NA width in Rscript (causes rep() crash in make_progress_bar)
 options(warn=(-1)) # Ignore NA warnings
 arguments <- commandArgs(trailingOnly=FALSE) # Will capture all arguments, so can search these later
 
@@ -131,7 +132,14 @@ for (tbl in tbls_to_load) {
 dbDisconnect(con, shutdown=TRUE)
 cp_train <- subsetRows(cp_compiled, rows=which(cp_compiled$sample_type=="training" & cp_compiled$phenotypic_active[,2]=="active"))
 cp_train <- global_rownames(cp_train)
-cli_alert_success(" Data loaded!")
+if (nrow(cp_train$mesh) == 0) {
+    cli_abort(c(
+        "No active training samples found in the database.",
+        "i" = "Ensure scripts 01-03 completed successfully and the database contains rows with {.val sample_type == 'training'} and {.val phenotypic_active == 'active'}.",
+        "x" = "Cannot proceed: cp_train is empty. Check your input files and re-run scripts 01-03."
+    ))
+}
+cli_alert_success(" Data loaded! {nrow(cp_train$mesh)} active training samples found.")
 
 # Go through and get the pubmed CIDs, and match them to the drugbank ones
 cli_alert_info(" Initial CID matching")

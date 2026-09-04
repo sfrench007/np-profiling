@@ -38,6 +38,7 @@ options(stringsAsFactors=FALSE) # Otherwise we need to force them as strings rep
 options(echo=FALSE) # Rscript needs options(echo=TRUE) to make an output file
 options(cli.progress_show_after=0) # For progress bars
 options(cli.condition="always") # For progress bars
+options(cli.width=max(80L, getOption("width", 80L))) # Guard against 0/NA width in Rscript (causes rep() crash in make_progress_bar)
 options(warn=(-1)) # Ignore NA warnings
 options(scipen = 999)
 arguments <- commandArgs(trailingOnly=FALSE) # Will capture all arguments, so can search these later
@@ -490,6 +491,7 @@ if(useMethod=="filesize") {
     names(workingList) <- newNames_workingList
 
     bad <- list()
+    bad$method <- "filesize"
     bad$cutoff <- cutoff
     bad$filesizes_raw <- filesizes_raw
     bad$filesizes_norm <- filesizes
@@ -635,20 +637,15 @@ if(useMethod=="filesize") {
 } else if(method=="transformer") {
     cli_alert_info(" Using transformer model outputs for dead/empty/blurry well detection")
     dba_trans <- read_parquet("data/input/qc_deadempty_predictions.parquet")
-    bad <- list()
-    bad$cutoff <- 0.5
-    bad$sheet <- dba_trans
-    bad$well_dba_names <- dba_trans[which(dba_trans$p_dead_empty>bad$cutoff),"well"]
-    
-    # bad <- list()
-    # bad$cutoff <- cutoff
-    # bad$filesizes_raw <- filesizes_raw
-    # bad$filesizes_norm <- filesizes
-    # bad$filesizes_means <- filesizes_means
-    # bad$filesizes_means_codes <- newNames_workingList
-    # bad$well_dba_indices <- well_dba_indices
-    # bad$well_dba_values <- well_dba_values
-    # bad$well_dba_names <- well_dba_names
+    cutoff <- 0.5
+    if(any(arguments=="--cutoff")) {
+        arg_ind <- which(arguments=="--cutoff")
+        arg_trailing <- arguments[arg_ind[1]+1]
+        cutoff <- as.numeric(arg_trailing)
+        cli_alert_success(" Dead/empty probability cutoff set as {arg_trailing}")
+    } else {
+        cli_alert_success(" Using default dead/empty cutoff of {cutoff}")
+    }
 
     if(!any(arguments=="--annotateonly")) {
         if(any(arguments=="--hqp")) {
@@ -664,10 +661,6 @@ if(useMethod=="filesize") {
             cli_alert_warning(" No HQP set in arguements so using [Anonymous] to generate info tag")
             tag <<- generateTag(hqp="Anonymous")
         }
-        options(echo=TRUE)
-        saveRDS(bad,"data/output/dba_summary.Rds",version=2)
-        options(echo=FALSE)
-        cli_alert_success(" Writing file [data/output/dba_summary.Rds]")
 
         allsplit <- do.call(rbind,strsplit(dba_trans$plate,"_"))       
         alllibs <- dba_trans$screen
@@ -686,7 +679,7 @@ if(useMethod=="filesize") {
         # Now consolidate the fields for exporting — vectorized: O(n) vs O(n²) loop
         prob_num <- as.numeric(export_this_full[, "dba.probability"])
         min_by_code <- tapply(prob_num, tcode, min) # min prob per plate-well
-        passing_codes <- names(min_by_code)[min_by_code > bad$cutoff] # filter by cutoff
+        passing_codes <- names(min_by_code)[min_by_code > cutoff] # filter by cutoff
         first_idx <- match(passing_codes, tcode) # first row per code
         export_this <- export_this_full[first_idx, , drop=FALSE]
         export_this[, "dba.probability"] <- as.character(min_by_code[passing_codes])
@@ -704,15 +697,17 @@ if(useMethod=="filesize") {
         cli_alert_info(" Clearing RAM")
         gc()
 
-
-
-
-
-
-
-
-
-
+        bad <- list()
+        bad$method <- "transformer"
+        bad$cutoff <- cutoff
+        bad$well_dba_indices <- which(dba_trans$p_dead_empty>cutoff)
+        bad$well_dba_values <- export_this[,"dba.probability"]
+        bad$well_dba_names <- export_this[,"code"]
+        
+        options(echo=TRUE)
+        saveRDS(bad,"data/output/dba_summary.Rds",version=2)
+        options(echo=FALSE)
+        cli_alert_success(" Writing file [data/output/dba_summary.Rds]")
 
         # Only the metadata table is needed here to build sample codes and row count.
         # Keep the connection open so we can write the quality annotation back without
@@ -720,7 +715,44 @@ if(useMethod=="filesize") {
         cli_alert_info(" Connecting to [data/db/cellpainting.duckdb] (metadata only)")
         db_con    <- dbConnect(duckdb(), dbdir="data/db/cellpainting.duckdb", read_only=FALSE)
         cc_meta   <- dbReadTable(db_con, "metadata")  # fast: one small table
-        bad <- readRDS("data/output/dba_summary.Rds")
+
+
+
+# Error in `dbSendQuery()`:
+# ! Catalog Error: Table with name metadata does not exist!
+# Did you mean "pragma_database_list"?
+
+# LINE 1: SELECT * FROM metadata
+#                       ^
+# ℹ Context: rapi_prepare
+# ℹ Error type: CATALOG
+# Run `rlang::last_trace()` to see where the error occurred.
+# >
+# >         cc_comp_codes <- apply(cc_meta, 1, function(x) paste(x[7], x[2], pas$
+# Error: object 'cc_meta' not found
+# > db_con    <- dbConnect(duckdb(), dbdir="data/db/cellpainting.duckdb", read_o$
+# > cc_meta   <- dbReadTable(db_con, "metadata")  # fast: one small table     
+# Error in `dbSendQuery()`:
+# ! Catalog Error: Table with name metadata does not exist!
+# Did you mean "pragma_database_list"?
+
+# LINE 1: SELECT * FROM metadata
+#                       ^
+# ℹ Context: rapi_prepare
+# ℹ Error type: CATALOG
+# Run `rlang::last_trace()` to see where the error occurred.
+# > names(db_con)
+# NULL
+# > db_con
+# <duckdb_connection f4b10 driver=<duckdb_driver dbdir='D:\np-profiling\data\db\cellpainting.duckdb' read_only=FALSE bigint=numeric>>
+
+
+
+
+
+
+
+
 
         cc_comp_codes <- apply(cc_meta, 1, function(x) paste(x[7], x[2], paste0("R", x[11]), x[5], sep="-"))
 
