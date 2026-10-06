@@ -37,3 +37,13 @@ data/input/*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- Large LFS-tracked files removed from repo to save LFS quota (regenerate via scripts) ---
+results/RF_target.Rds
+results/RF_target_cutoffRefined_roc.Rds
+data/output/dba_summary.Rds
+data/output/masterdata.tsv
+assays/nuclei_identification/analyzed/CP_PharmakonNuclei.csv
+assays/nuclei_identification/analyzed/CP_PharmakonH2AX_fluor.csv
+assays/nuclei_identification/analyzed/CP_PharmakonMatchedNuclei.csv
+assays/nuclei_identification/analyzed/CP_PharmakonMatchedH2AX.csv
